@@ -1,6 +1,7 @@
 
 <!DOCTYPE html>
-< lang="en">
+<html lang="en">
+
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -410,14 +411,17 @@ footer strong {
 </footer>
 
 <script>
+const BACKEND_URL = "https://numora-backend.onrender.com";
+
+
 const numbers = [
-  {country:"USA",flag:"🇺🇸",service:"WhatsApp",price:2.50},
-  {country:"USA",flag:"🇺🇸",service:"Telegram",price:1.80},
-  {country:"UK",flag:"🇬🇧",service:"WhatsApp",price:2.20},
-  {country:"UK",flag:"🇬🇧",service:"Telegram",price:1.70},
-  {country:"Nigeria",flag:"🇳🇬",service:"WhatsApp",price:1.50},
-  {country:"Canada",flag:"🇨🇦",service:"WhatsApp",price:2.40},
-  {country:"Germany",flag:"🇩🇪",service:"Telegram",price:2.10}
+  {country:"USA", code:"usa", flag:"🇺🇸", service:"WhatsApp", product:"whatsapp", price:500},
+  {country:"USA", code:"usa", flag:"🇺🇸", service:"Telegram", product:"telegram", price:500},
+  {country:"UK", code:"england", flag:"🇬🇧", service:"WhatsApp", product:"whatsapp", price:500},
+  {country:"UK", code:"england", flag:"🇬🇧", service:"Telegram", product:"telegram", price:500},
+  {country:"Nigeria", code:"nigeria", flag:"🇳🇬", service:"WhatsApp", product:"whatsapp", price:500},
+  {country:"Canada", code:"canada", flag:"🇨🇦", service:"WhatsApp", product:"whatsapp", price:500},
+  {country:"Germany", code:"germany", flag:"🇩🇪", service:"Telegram", product:"telegram", price:500}
 ];
 
 const grid = document.getElementById("numberGrid");
@@ -439,8 +443,7 @@ function renderNumbers() {
   grid.innerHTML = "";
 
   if (!filtered.length) {
-    grid.innerHTML =
-      "<p>No matching listings. Try another search.</p>";
+    grid.innerHTML = "<p>No matching listings. Try another filter.</p>";
     return;
   }
 
@@ -457,39 +460,88 @@ function renderNumbers() {
 
     const desc = document.createElement("p");
     desc.className = "service";
-    desc.textContent = n.service + " · Sample listing";
+    desc.textContent = n.service + " Verification";
 
     const price = document.createElement("div");
     price.className = "price";
-    price.textContent = "$" + n.price.toFixed(2);
+    price.textContent = "₦" + n.price;
 
     const available = document.createElement("div");
     available.className = "available";
-    available.textContent = "● Preview listing";
+    available.textContent = "● Live Instant SMS";
+
+    const statusBox = document.createElement("div");
+    statusBox.style.marginTop = "10px";
+    statusBox.style.fontSize = "14px";
+    statusBox.style.fontWeight = "bold";
 
     const button = document.createElement("button");
     button.className = "buy";
-    button.textContent = "View Number";
+    button.textContent = "Buy Number";
 
-    button.onclick = () => {
-      alert(
-        "Welcome to NUMORA! This is a sample listing. " +
-        "Real numbers and purchases will be connected " +
-        "to our provider and payment system."
-      );
+    button.onclick = async () => {
+      button.disabled = true;
+      button.textContent = "Ordering...";
+      statusBox.textContent = "Connecting to server...";
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/order-number`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: "user_1",
+            countryId: n.code,
+            serviceId: n.product
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.phoneNumber) {
+          statusBox.innerHTML = `Number: <span style="color:#16a34a;">${data.phoneNumber}</span><br>Waiting for SMS code...`;
+          button.textContent = "Waiting for Code";
+          pollForSms(data.orderId, statusBox, button);
+        } else {
+          statusBox.style.color = "#dc2626";
+          statusBox.textContent = data.error || "No numbers available right now.";
+          button.disabled = false;
+          button.textContent = "Buy Number";
+        }
+      } catch (err) {
+        statusBox.style.color = "#dc2626";
+        statusBox.textContent = "Server waking up or unreachable. Try again in 10s.";
+        button.disabled = false;
+        button.textContent = "Buy Number";
+      }
     };
 
-    card.append(flag,title,desc,price,available,button);
+    card.append(flag, title, desc, price, available, button, statusBox);
     grid.appendChild(card);
   });
 }
 
-search.addEventListener("input",renderNumbers);
-country.addEventListener("change",renderNumbers);
-service.addEventListener("change",renderNumbers);
+function pollForSms(orderId, statusBox, button) {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/check-sms/${orderId}`);
+      const data = await res.json();
+
+      if (data.code) {
+        clearInterval(interval);
+        statusBox.innerHTML += `<br>OTP Code: <span style="font-size:18px; color:#2563eb;">${data.code}</span>`;
+        button.textContent = "Completed";
+      }
+    } catch (e) {
+      console.error("Polling error:", e);
+    }
+  }, 5000);
+}
+
+search.addEventListener("input", renderNumbers);
+country.addEventListener("change", renderNumbers);
+service.addEventListener("change", renderNumbers);
 
 renderNumbers();
 </script>
-
-</body> 
+</body>
 </html>
